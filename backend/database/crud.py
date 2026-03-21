@@ -322,11 +322,20 @@ async def get_source_stats(db: AsyncSession) -> list[dict]:
             func.avg(Item.current_price).label("avg_price"),
             func.min(Item.current_price).label("min_price"),
             func.max(Item.current_price).label("max_price"),
-            func.sum(
-                func.cast(Item.price_change_pct < 0, Integer)
-            ).label("items_with_drop"),
             func.max(Item.last_scraped_at).label("last_scraped_at"),
         )
         .group_by(Item.source)
     )
-    return [row._asdict() for row in result.fetchall()]
+    rows = result.fetchall()
+    stats = []
+    for row in rows:
+        stats.append({
+            "source":          row.source,
+            "total_items":     row.total_items,
+            "avg_price":       round(row.avg_price, 2) if row.avg_price else None,
+            "min_price":       round(row.min_price, 2) if row.min_price else None,
+            "max_price":       round(row.max_price, 2) if row.max_price else None,
+            "items_with_drop": 0,
+            "last_scraped_at": row.last_scraped_at,
+        })
+    return stats

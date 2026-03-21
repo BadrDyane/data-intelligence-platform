@@ -1,65 +1,94 @@
 """
 Books to Scrape — books.toscrape.com
 
-A legal, purpose-built scraping sandbox. Used as the primary demo source
-because it has real price data, categories, ratings, and 50 pages of content.
+Updated to scrape by category so every book gets a proper category label
+(Mystery, Fiction, Science, etc.) instead of defaulting to 'General'.
 
-Demonstrates:
-  - Pagination (50 pages of 20 items each)
-  - Price parsing (British pounds with encoding quirks)
-  - Category extraction
-  - Rating extraction
-  - Availability detection
-
-This is the source you use in all demos and load tests.
+Strategy:
+  1. Fetch the homepage and extract all category URLs + names
+  2. Scrape each category page by page
+  3. Tag every item with its category
 """
 
-import asyncio
 from bs4 import BeautifulSoup
 
 from backend.scrapers.static_scraper import StaticScraper
 from backend.scrapers.base_scraper import ScrapedItem, ScrapeResult
 
-BASE_URL     = "https://books.toscrape.com"
-CATALOGUE    = f"{BASE_URL}/catalogue"
-START_URL    = f"{CATALOGUE}/page-1.html"
-MAX_PAGES    = 50   # Site has exactly 50 pages
+BASE_URL  = "https://books.toscrape.com"
+CATALOGUE = f"{BASE_URL}/catalogue"
 
 RATING_WORDS = {"One": 1, "Two": 2, "Three": 3, "Four": 4, "Five": 5}
+
+# Limit for demo — set to None to scrape all 50 categories
+MAX_CATEGORIES = 10
+MAX_PAGES_PER_CATEGORY = 5
 
 
 class BooksToScrapeScraper(StaticScraper):
 
-    def __init__(self, max_pages: int = MAX_PAGES):
+    def __init__(self):
         super().__init__(
             source_name="books_toscrape",
             base_url=BASE_URL,
         )
-        self.max_pages = max_pages
 
-    # ── Core parsing ───────────────────────────────────────────────────────────
+    # ── Step 1: get all category URLs ──────────────────────────────────────
 
-    def _parse_article(self, article: BeautifulSoup) -> ScrapedItem:
-        """Extract a single book from an <article class='product_pod'> element."""
+    async def _get_categories(self) -> list[tuple[str, str]]:
+        """
+        Fetch the homepage and extract all category links.
+        Returns a list of (category_name, category_url) tuples.
 
-        # Title + URL
+        Example:
+            ("Mystery", "https://books.toscrape.com/catalogue/category/books/mystery_3/index.html")
+        """
+        html = await self._get(BASE_URL)
+        if not html:
+            return []
+
+        soup = self.parse_html(html)
+
+        # Category links are in the left sidebar under <ul class="nav nav-list">
+        nav = soup.select_one("ul.nav.nav-list")
+        if not nav:
+            self.logger.warning("Could not find category nav — falling back to General")
+            return []
+
+        categories = []
+        for a in nav.select("ul li a"):
+            name = a.get_text(strip=True)
+            href = a["href"].strip()
+            # href is relative like "catalogue/category/books/mystery_3/index.html"
+            url = f"{BASE_URL}/{href}"
+            if name.lower() != "books":   # Skip the top-level "Books" link
+                categories.append((name, url))
+
+        self.logger.info(f"Found {len(categories)} categories")
+        return categories
+
+    # ── Step 2: parse a single book article ───────────────────────────────
+
+    def _parse_article(
+        self, article: BeautifulSoup, category: str
+    ) -> ScrapedItem:
         a = article.select_one("h3 a")
         title = a["title"]
-        href  = a["href"].replace("../", "")
+        href  = a["href"].replace("../", "").replace("../../", "")
         url   = f"{CATALOGUE}/{href}"
 
-        # Price — site uses "Â£" encoding quirk for £
         raw_price = article.select_one(".price_color").get_text(strip=True)
         price, currency, _ = self.parse_price(raw_price)
 
-        # Star rating (stored as word in the class name: "star-rating Three")
         rating_el   = article.select_one(".star-rating")
         rating_word = rating_el["class"][1] if rating_el else "Zero"
         rating      = RATING_WORDS.get(rating_word, 0)
 
-        # Availability
-        avail_text = article.select_one(".availability")
-        available  = "in stock" in avail_text.get_text(strip=True).lower() if avail_text else True
+        avail_el  = article.select_one(".availability")
+        available = (
+            "in stock" in avail_el.get_text(strip=True).lower()
+            if avail_el else True
+        )
 
         return ScrapedItem(
             external_id  = self.make_id("books_toscrape", href),
@@ -70,63 +99,119 @@ class BooksToScrapeScraper(StaticScraper):
             currency     = currency,
             raw_price    = raw_price,
             is_available = available,
-            category     = None,    # Populated in scrape_page() from page context
+            category     = category,
             raw_data     = {
-                "rating":        rating,
-                "rating_label":  rating_word,
-                "href":          href,
+                "rating":       rating,
+                "rating_label": rating_word,
+                "href":         href,
             },
         )
 
-    def _parse_category(self, soup: BeautifulSoup) -> str:
-        """Extract the category name from a listing page's breadcrumb."""
-        breadcrumbs = soup.select("ul.breadcrumb li")
-        # Breadcrumb: Home > Books > [Category] > (if on category page)
-        if len(breadcrumbs) >= 3:
-            return breadcrumbs[2].get_text(strip=True)
-        return "General"
+    # ── Step 3: scrape one category page ──────────────────────────────────
 
-    # ── BaseScraper implementation ─────────────────────────────────────────────
-
-    async def scrape_page(self, url: str, page_num: int = 1) -> list[ScrapedItem]:
+    async def scrape_page(
+        self, url: str, page_num: int = 1
+    ) -> list[ScrapedItem]:
+        # Category pages have a "next" button — we pass the category name
+        # via a different method, so this just returns items with no category
         html = await self._get(url)
         if not html:
             return []
-
-        soup     = self.parse_html(html)
-        category = self._parse_category(soup)
-        articles = soup.select("article.product_pod")
-
+        soup  = self.parse_html(html)
         items = []
-        for article in articles:
+        for article in soup.select("article.product_pod"):
             try:
-                item = self._parse_article(article)
-                item.category = category
-                items.append(item)
+                items.append(self._parse_article(article, "General"))
             except Exception as e:
-                self.logger.warning(f"Failed to parse article on page {page_num}: {e}")
-
-        self.log_page(page_num, url, len(items))
+                self.logger.warning(f"Parse error on {url}: {e}")
         return items
+
+    async def _scrape_category(
+        self, category_name: str, category_url: str
+    ) -> tuple[list[ScrapedItem], int]:
+        """
+        Scrape all pages of a single category.
+        Returns (items, pages_scraped).
+        """
+        all_items = []
+        page_num  = 1
+        url       = category_url
+
+        while True:
+            if MAX_PAGES_PER_CATEGORY and page_num > MAX_PAGES_PER_CATEGORY:
+                break
+
+            html = await self._get(url)
+            if not html:
+                break
+
+            soup     = self.parse_html(html)
+            articles = soup.select("article.product_pod")
+
+            if not articles:
+                break
+
+            for article in articles:
+                try:
+                    item = self._parse_article(article, category_name)
+                    all_items.append(item)
+                except Exception as e:
+                    self.logger.warning(
+                        f"Parse error [{category_name}] page {page_num}: {e}"
+                    )
+
+            self.log_page(page_num, url, len(articles))
+
+            # Check for a "next" button to get the next page URL
+            next_btn = soup.select_one("li.next a")
+            if not next_btn:
+                break
+
+            # Next href is relative to the current page's directory
+            next_href = next_btn["href"]
+            base_dir  = url.rsplit("/", 1)[0]
+            url       = f"{base_dir}/{next_href}"
+            page_num += 1
+
+        return all_items, page_num - 1
+
+    # ── Main orchestrator ──────────────────────────────────────────────────
 
     async def scrape_all(self) -> ScrapeResult:
         result = ScrapeResult(source=self.source_name)
 
-        for page_num in range(1, self.max_pages + 1):
-            url = f"{CATALOGUE}/page-{page_num}.html"
+        # Get all categories
+        categories = await self._get_categories()
+        if not categories:
+            self.logger.error("No categories found — aborting")
+            return result
+
+        # Limit for demo
+        if MAX_CATEGORIES:
+            categories = categories[:MAX_CATEGORIES]
+            self.logger.info(
+                f"Scraping {len(categories)} categories "
+                f"(MAX_CATEGORIES={MAX_CATEGORIES})"
+            )
+
+        # Scrape each category
+        for category_name, category_url in categories:
+            self.logger.info(f"Scraping category: {category_name}")
             try:
-                items = await self.scrape_page(url, page_num)
-                if not items:
-                    # Empty page = we've gone past the last page
-                    self.logger.info(f"No items on page {page_num}. Stopping.")
-                    break
+                items, pages = await self._scrape_category(
+                    category_name, category_url
+                )
                 result.items.extend(items)
-                result.pages_scraped += 1
+                result.pages_scraped += pages
+                self.logger.info(
+                    f"  {category_name}: {len(items)} items, {pages} pages"
+                )
             except Exception as e:
-                result.add_error(url, str(e))
+                result.add_error(category_url, str(e))
 
         self.logger.info(
-            f"Completed: {len(result.items)} items across {result.pages_scraped} pages "
+            f"Completed: {len(result.items)} items across "
+            f"{result.pages_scraped} pages "
             f"({result.error_count} errors)"
         )
         return result
