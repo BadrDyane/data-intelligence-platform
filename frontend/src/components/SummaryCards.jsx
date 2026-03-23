@@ -36,8 +36,38 @@ export default function SummaryCards() {
   }, [])
 
   if (loading) return (
-    <div style={{ color: '#9ca3af', padding: '8px 0' }}>
-      Loading summary...
+    <div style={{ display: 'flex', gap: '16px' }}>
+      {[1,2,3,4].map(i => (
+        <div key={i} style={{
+          flex: 1,
+          background: '#fff',
+          borderRadius: '10px',
+          padding: '24px',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+        }}>
+          <div style={{
+            height: '12px',
+            background: '#f3f4f6',
+            borderRadius: '4px',
+            marginBottom: '12px',
+            width: '60%',
+            animation: 'pulse 1.5s ease-in-out infinite',
+          }}/>
+          <div style={{
+            height: '28px',
+            background: '#f3f4f6',
+            borderRadius: '4px',
+            width: '40%',
+            animation: 'pulse 1.5s ease-in-out infinite',
+          }}/>
+          <style>{`
+            @keyframes pulse {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.4; }
+            }
+          `}</style>
+        </div>
+      ))}
     </div>
   )
 

@@ -20,15 +20,18 @@ export default function PriceChart({ item }) {
       background: '#fff',
       borderRadius: '10px',
       boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-      padding: '40px',
+      padding: '48px 40px',
       textAlign: 'center',
-      color: '#9ca3af',
-      fontSize: '14px',
     }}>
-      Click any row in the table to see its price history
+      <div style={{ fontSize: '32px', marginBottom: '12px' }}>📈</div>
+      <div style={{ fontSize: '15px', fontWeight: 600, color: '#1f2937', marginBottom: '6px' }}>
+        No item selected
+      </div>
+      <div style={{ fontSize: '13px', color: '#9ca3af' }}>
+        Click any row in the table below to view its price history
+      </div>
     </div>
   )
-
   if (loading) return (
     <div style={{
       background: '#fff',

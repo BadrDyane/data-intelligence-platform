@@ -33,3 +33,14 @@ export const triggerScrape = (source) =>
   client.post('/scrape', { source })
 
 export default client
+
+// ── Alerts ─────────────────────────────────────────────────────────────────
+
+export const createAlert = (data) =>
+  client.post('/alerts', data)
+
+export const getAlerts = () =>
+  client.get('/alerts')
+
+export const deleteAlert = (id) =>
+  client.delete(`/alerts/${id}`)

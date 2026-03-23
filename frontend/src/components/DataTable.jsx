@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getItems } from '../api/client'
+import { getItems, getAlerts } from '../api/client'
 
 const CATEGORIES = [
   'All', 'Mystery', 'Historical Fiction', 'Sequential Art',
@@ -14,6 +14,7 @@ export default function DataTable({ onSelectItem }) {
   const [search, setSearch]     = useState('')
   const [category, setCategory] = useState('')
   const [loading, setLoading]   = useState(true)
+  const [alertedIds, setAlertedIds] = useState(new Set())
 
   const pageSize = 20
 
@@ -31,6 +32,15 @@ export default function DataTable({ onSelectItem }) {
       .catch(err => console.error('Items error:', err))
       .finally(() => setLoading(false))
   }, [page, search, category])
+
+  useEffect(() => {
+    getAlerts()
+      .then(res => {
+        const ids = new Set(res.data.map(a => a.item_id))
+        setAlertedIds(ids)
+      })
+      .catch(err => console.error('Alerts fetch error:', err))
+  }, [])
 
   const totalPages = Math.ceil(total / pageSize)
 
@@ -124,8 +134,21 @@ export default function DataTable({ onSelectItem }) {
                 onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? '#fff' : '#fafafa'}
               >
                 <td style={{ padding: '12px 16px', fontSize: '13px', color: '#1f2937', maxWidth: '280px' }}>
-                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {item.title}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {alertedIds.has(item.id) && (
+                      <span
+                        title="Alert active"
+                        style={{
+                          fontSize: '13px',
+                          flexShrink: 0,
+                        }}
+                      >
+                        🔔
+                      </span>
+                    )}
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.title}  
+                    </div>
                   </div>
                 </td>
                 <td style={{ padding: '12px 16px' }}>
@@ -140,8 +163,25 @@ export default function DataTable({ onSelectItem }) {
                     {item.category || 'General'}
                   </span>
                 </td>
-                <td style={{ padding: '12px 16px', fontSize: '13px', fontWeight: 600, color: '#059669' }}>
-                  £{item.current_price}
+                <td style={{ padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#059669' }}>
+                      £{item.current_price}
+                    </span>
+                    {item.price_change_pct !== null && item.price_change_pct !== 0 && (
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: item.price_change_pct < 0 ? '#fee2e2' : '#d1fae5',
+                        color: item.price_change_pct < 0 ? '#ef4444' : '#059669',
+                      }}>
+                        {item.price_change_pct < 0 ? '▼' : '▲'}
+                        {Math.abs(item.price_change_pct).toFixed(1)}%
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6b7280' }}>
                   {'★'.repeat(item.extra_data?.rating || 0)}{'☆'.repeat(5 - (item.extra_data?.rating || 0))}

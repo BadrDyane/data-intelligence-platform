@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import Dashboard from './pages/Dashboard'
 import './App.css'
+import Runs from './pages/Runs'
+import Alerts from './pages/Alerts'
 
 export default function App() {
   const [activePage, setActivePage] = useState('dashboard')
@@ -37,6 +39,7 @@ export default function App() {
             { id: 'dashboard', label: 'Dashboard' },
             { id: 'items',     label: 'Items' },
             { id: 'runs',      label: 'Scrape Runs' },
+            { id: 'alerts',    label: 'Alerts'      },
           ].map(link => (
             <button
               key={link.id}
@@ -78,7 +81,9 @@ export default function App() {
 
       {/* Main content */}
       <main style={{ flex: 1, overflow: 'auto' }}>
-        <Dashboard />
+      {activePage === 'dashboard' && <Dashboard />}
+      {activePage === 'runs'      && <Runs />}
+      {activePage === 'alerts'    && <Alerts />}
       </main>
 
     </div>
