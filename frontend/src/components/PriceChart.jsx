@@ -69,27 +69,28 @@ export default function PriceChart({ item }) {
       </div>
 
       {/* Stat pills */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
-        {[
-          { label: 'Current', value: `£${trend?.current_price}`, color: '#6366f1' },
-          { label: 'Min',     value: `£${trend?.min_price}`,     color: '#10b981' },
-          { label: 'Max',     value: `£${trend?.max_price}`,     color: '#ef4444' },
-          { label: 'Avg',     value: `£${trend?.avg_price}`,     color: '#f59e0b' },
-        ].map(stat => (
-          <div key={stat.label} style={{
-            background: '#f9fafb',
-            borderRadius: '8px',
-            padding: '10px 16px',
-            borderLeft: `3px solid ${stat.color}`,
-          }}>
-            <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>
-              {stat.label}
-            </div>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: '#1f2937' }}>
-              {stat.value}
-            </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
+      {[
+        { label: 'Current', value: `£${trend?.current_price}`, color: '#6366f1' },
+        { label: 'Min',     value: `£${trend?.min_price}`,     color: '#10b981' },
+        { label: 'Max',     value: `£${trend?.max_price}`,     color: '#ef4444' },
+        { label: 'Avg',     value: `£${trend?.avg_price}`,     color: '#f59e0b' },
+      ].map(stat => (
+        <div key={stat.label} style={{
+          background: '#f9fafb',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          borderLeft: `3px solid ${stat.color}`,
+          minWidth: 0,
+        }}>
+          <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '2px' }}>
+            {stat.label}
           </div>
-        ))}
+          <div style={{ fontSize: '18px', fontWeight: 700, color: '#1f2937' }}>
+            {stat.value}
+          </div>
+        </div>
+      ))}
       </div>
 
       {/* Line chart */}

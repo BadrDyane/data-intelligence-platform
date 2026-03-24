@@ -1,37 +1,19 @@
 import { useState, useEffect } from 'react'
 import { getItems, getAlerts } from '../api/client'
 
-const CATEGORIES = [
-  'All', 'Mystery', 'Historical Fiction', 'Sequential Art',
-  'Classics', 'Philosophy', 'Romance', 'Womens Fiction',
-  'Fiction', 'Childrens',
-]
 
 export default function DataTable({ onSelectItem }) {
+  const [categories, setCategories] = useState([])
   const [items, setItems]       = useState([])
   const [total, setTotal]       = useState(0)
   const [page, setPage]         = useState(1)
   const [search, setSearch]     = useState('')
   const [category, setCategory] = useState('')
+  const [source, setSource]     = useState('')
   const [loading, setLoading]   = useState(true)
   const [alertedIds, setAlertedIds] = useState(new Set())
 
   const pageSize = 20
-
-  useEffect(() => {
-    setLoading(true)
-    const params = { page, page_size: pageSize }
-    if (search)   params.search   = search
-    if (category && category !== 'All') params.category = category
-
-    getItems(params)
-      .then(res => {
-        setItems(res.data.items)
-        setTotal(res.data.total)
-      })
-      .catch(err => console.error('Items error:', err))
-      .finally(() => setLoading(false))
-  }, [page, search, category])
 
   useEffect(() => {
     getAlerts()
@@ -41,6 +23,37 @@ export default function DataTable({ onSelectItem }) {
       })
       .catch(err => console.error('Alerts fetch error:', err))
   }, [])
+
+  useEffect(() => {
+    const params = { page_size: 200 }
+    if (source) params.source = source
+  
+    getItems(params).then(res => {
+      const unique = [...new Set(
+        res.data.items
+          .map(i => i.category)
+          .filter(Boolean)
+      )].sort()
+      setCategories(unique)
+      setCategory('')  // reset category when source changes
+    })
+  }, [source])
+
+  useEffect(() => {
+    setLoading(true)
+    const params = { page, page_size: pageSize }
+    if (search)   params.search   = search
+    if (category && category !== 'All') params.category = category
+    if (source)   params.source   = source
+
+    getItems(params)
+      .then(res => {
+        setItems(res.data.items)
+        setTotal(res.data.total)
+      })
+      .catch(err => console.error('Items error:', err))
+      .finally(() => setLoading(false))
+  }, [page, search, category, source])
 
   const totalPages = Math.ceil(total / pageSize)
 
@@ -88,9 +101,27 @@ export default function DataTable({ onSelectItem }) {
             cursor: 'pointer',
           }}
         >
-          {CATEGORIES.map(c => (
-            <option key={c} value={c === 'All' ? '' : c}>{c}</option>
+          <option value="">All Categories</option>
+          {categories.map(c => (
+            <option key={c} value={c}>{c}</option>
           ))}
+        </select>
+        <select
+          value={source}
+          onChange={e => { setSource(e.target.value); setPage(1) }}
+          style={{
+            padding: '8px 12px',
+            borderRadius: '8px',
+            border: '1px solid #e5e7eb',
+            fontSize: '13px',
+            outline: 'none',
+            background: '#fff',
+            cursor: 'pointer',
+          }}
+        >
+          <option value="">All Sources</option>
+          <option value="books_toscrape">Books</option>
+          <option value="quotes_toscrape">Quotes</option>
         </select>
         <span style={{ marginLeft: 'auto', fontSize: '13px', color: '#9ca3af' }}>
           {total} items
@@ -136,18 +167,12 @@ export default function DataTable({ onSelectItem }) {
                 <td style={{ padding: '12px 16px', fontSize: '13px', color: '#1f2937', maxWidth: '280px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     {alertedIds.has(item.id) && (
-                      <span
-                        title="Alert active"
-                        style={{
-                          fontSize: '13px',
-                          flexShrink: 0,
-                        }}
-                      >
+                      <span title="Alert active" style={{ fontSize: '13px', flexShrink: 0 }}>
                         🔔
                       </span>
                     )}
                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {item.title}  
+                      {item.title}
                     </div>
                   </div>
                 </td>
@@ -166,7 +191,7 @@ export default function DataTable({ onSelectItem }) {
                 <td style={{ padding: '12px 16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{ fontSize: '13px', fontWeight: 600, color: '#059669' }}>
-                      £{item.current_price}
+                      {item.current_price ? `£${item.current_price}` : '—'}
                     </span>
                     {item.price_change_pct !== null && item.price_change_pct !== 0 && (
                       <span style={{
@@ -184,7 +209,9 @@ export default function DataTable({ onSelectItem }) {
                   </div>
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: '13px', color: '#6b7280' }}>
-                  {'★'.repeat(item.extra_data?.rating || 0)}{'☆'.repeat(5 - (item.extra_data?.rating || 0))}
+                  {item.extra_data?.rating
+                    ? '★'.repeat(item.extra_data.rating) + '☆'.repeat(5 - item.extra_data.rating)
+                    : '—'}
                 </td>
                 <td style={{ padding: '12px 16px' }}>
                   <span style={{

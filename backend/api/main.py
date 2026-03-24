@@ -86,16 +86,12 @@ async def lifespan(app: FastAPI):
 
 
 async def _seed_sources() -> None:
-    """
-    Insert the default source records if they don't already exist.
-    This way the DB is always in a usable state after first startup.
-    """
     from backend.database.session import AsyncSessionLocal
     from backend.database import crud
 
     async with AsyncSessionLocal() as db:
-        existing = await crud.get_source(db, "books_toscrape")
-        if not existing:
+        # Books source
+        if not await crud.get_source(db, "books_toscrape"):
             await crud.create_source(
                 db,
                 name="books_toscrape",
@@ -107,6 +103,20 @@ async def _seed_sources() -> None:
             )
             await db.commit()
             logger.info("Seeded source: books_toscrape")
+
+        # Quotes source
+        if not await crud.get_source(db, "quotes_toscrape"):
+            await crud.create_source(
+                db,
+                name="quotes_toscrape",
+                display_name="Quotes to Scrape",
+                base_url="https://quotes.toscrape.com",
+                scraper_class="QuotesToScrapeScraper",
+                is_active=True,
+                scrape_interval_hours=6,
+            )
+            await db.commit()
+            logger.info("Seeded source: quotes_toscrape")
 
 
 # ── App ───────────────────────────────────────────────────────────────────────

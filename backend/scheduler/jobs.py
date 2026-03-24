@@ -20,13 +20,15 @@ from backend.database import crud
 from backend.database.models import ScrapeStatus
 from backend.processing.pipeline import run_pipeline
 from backend.scrapers.sources.books_toscrape import BooksToScrapeScraper
+from backend.scrapers.sources.quotes_toscrape import QuotesToScrapeScraper
 
 logger = logging.getLogger(__name__)
 
 # Registry maps source name → scraper class
 # Add new sources here when you build them.
 SCRAPER_REGISTRY: dict = {
-    "books_toscrape": BooksToScrapeScraper,
+    "books_toscrape":  BooksToScrapeScraper,
+    "quotes_toscrape": QuotesToScrapeScraper,
 }
 
 
