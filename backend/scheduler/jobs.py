@@ -145,6 +145,50 @@ async def run_scrape_job(source_name: str, triggered_by: str = "scheduler") -> d
     logger.info(f"Scrape job complete: {summary}")
     return summary
 
+async def send_alert_email(
+    to_email: str,
+    subject: str,
+    message: str,
+) -> None:
+    """Send an alert notification email via SMTP."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    if not settings.ALERT_EMAIL_ENABLED:
+        logger.info(f"Email disabled — would have sent to {to_email}: {subject}")
+        return
+
+    if not settings.SMTP_USER or not settings.SMTP_PASS:
+        logger.warning("SMTP credentials not configured — skipping email")
+        return
+
+    try:
+        msg = MIMEMultipart()
+        msg["From"]    = settings.SMTP_USER
+        msg["To"]      = to_email
+        msg["Subject"] = subject
+
+        body = f"""
+DataIntel Platform — Price Alert
+
+{message}
+
+---
+This alert was triggered automatically by your DataIntel monitoring platform.
+Manage your alerts at: http://localhost:5173/
+        """
+        msg.attach(MIMEText(body, "plain"))
+
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+            server.starttls()
+            server.login(settings.SMTP_USER, settings.SMTP_PASS)
+            server.sendmail(settings.SMTP_USER, to_email, msg.as_string())
+
+        logger.info(f"Alert email sent to {to_email}: {subject}")
+
+    except Exception as e:
+        logger.error(f"Failed to send alert email to {to_email}: {e}")
 
 async def evaluate_alerts(run_id: int) -> None:
     """
@@ -189,6 +233,13 @@ async def evaluate_alerts(run_id: int) -> None:
             if fired:
                 await crud.fire_alert(db, alert, run_id, item.current_price, message)
                 logger.info(f"Alert {alert.id} fired: {message}")
+
+                if alert.notify_email:
+                    await send_alert_email(
+                        to_email=alert.notify_email,
+                        subject=f"DataIntel Alert: {alert.label or f'Alert #{alert.id}'}",
+                        message=message,
+                    )
 
         await db.commit()
 

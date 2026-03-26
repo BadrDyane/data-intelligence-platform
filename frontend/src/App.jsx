@@ -3,6 +3,7 @@ import Dashboard from './pages/Dashboard'
 import './App.css'
 import Runs from './pages/Runs'
 import Alerts from './pages/Alerts'
+import Items from './pages/Items'
 
 export default function App() {
   const [activePage, setActivePage] = useState('dashboard')
@@ -82,6 +83,7 @@ export default function App() {
       {/* Main content */}
       <main style={{ flex: 1, overflow: 'auto' }}>
       {activePage === 'dashboard' && <Dashboard />}
+      {activePage === 'items'     && <Items />}
       {activePage === 'runs'      && <Runs />}
       {activePage === 'alerts'    && <Alerts />}
       </main>
